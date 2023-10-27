@@ -3,7 +3,6 @@ import falcon
 from falcon import media
 from falcon.http_status import HTTPStatus
 import json
-from keri import kering
 from keri.end import ending
 import os
 from swagger_ui import api_doc
