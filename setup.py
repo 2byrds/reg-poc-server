@@ -79,7 +79,7 @@ setup(
         'redis>=4.5.5',
         'requests>=2.31.0',
         'swagger-ui-py>=22.7.13',
-        'keri @ git+https://git@github.com/WebOfTrust/keripy.git'
+        'keri>=1.1.4'
     ],
     extras_require={
         # eg:
