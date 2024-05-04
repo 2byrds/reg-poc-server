@@ -9,16 +9,18 @@ Provides the ability to:
 * Upload signed files
 * Check the status of an upload
 
-In two seperate terminals run:
-
-```
-cd src/regps; celery -A app.tasks worker -l DEBUG
-```
-
-and
+#### Running locally:
+In your terminal:
 
 ```
 cd src/regps; gunicorn -b 0.0.0.0:8000 app:app --reload
+```
+
+#### Running in Docker:
+```
+docker-compose build --no-cache
+docker-compose down
+docker-compose up
 ```
 
 Requires a running [Redis](https://redis.io/) instance on the default port. 

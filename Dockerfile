@@ -1,5 +1,5 @@
 # base image
-FROM python:3.11-alpine
+FROM python:3.12-alpine as builder
 
 RUN apk update
 RUN apk add bash

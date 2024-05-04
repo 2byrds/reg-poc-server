@@ -1,16 +1,16 @@
-from app.tasks import check_login, check_upload, upload, verify_vlei, verify_req
+from .tasks import check_login, check_upload, upload, verify_vlei, verify_cig
 import falcon
 from falcon import media
 from falcon.http_status import HTTPStatus
 import json
-from keri import kering
 from keri.end import ending
 import os
 from swagger_ui import api_doc
 
 uploadStatus = {}
 
-class AuthSigs(object):
+#the signature is a keri cigar objects
+class VerifySignedHeaders:
 
     DefaultFields = ["Signify-Resource",
                      "@method",
@@ -18,22 +18,24 @@ class AuthSigs(object):
                      "Signify-Timestamp"]
 
     def process_request(self, req, resp):
-        print(f"Processing header verification request {req}")
-        result = self.verify(req)
-        if result['status_code'] >= 400:
-            resp.status = falcon.code_to_http_status(result["status_code"])
-            resp.text = result["text"]
-            resp.content_type = result["headers"]['Content-Type']
-            print(f"Header verification failed request {resp}")
-            return resp
+        print(f"Processing signed header verification request {req}")
+        aid, cig, ser = self.handle_headers(req)
+        vresp = verify_cig(aid, cig, ser)
+        print(f"VerifySignedHeaders.on_post: response {vresp}")
+
+        if vresp.status_code >= 400:
+            print(f"Header verification failed request {vresp.status_code} {vresp.text} {vresp.headers}")
+            resp.status = falcon.code_to_http_status(vresp.status_code)
+            resp.text = vresp.text
+            resp.content_type = vresp.headers['Content-Type']
         else :
-            print(f"Header verification succeeded {resp}")
+            print(f"Signed header verification succeeded {resp}")
 
     def on_get(self, req, resp):
         return self.process_request(req, resp)
 
-    def verify(self, req):
-        print(f"verifying req {req}")
+    def handle_headers(self, req):
+        print(f"processing header req {req}")
 
         headers = req.headers
         if "SIGNATURE-INPUT" not in headers or "SIGNATURE" not in headers:
@@ -51,8 +53,7 @@ class AuthSigs(object):
 
         if not inputs:
             return False
-
-        result="{'status_code': 404, 'text': '{\"title\": \"404 Not Found\", \"description\": \"No result\"}', 'headers': {'Content-Type': 'application/json'}}"
+        
         for inputage in inputs:
             items = []
             for field in inputage.fields:
@@ -90,19 +91,16 @@ class AuthSigs(object):
 
             signages = ending.designature(signature)
             cig = signages[0].markers[inputage.name]
+            assert len(signages) == 1
+            assert signages[0].indexed is False
+            assert "signify" in signages[0].markers
 
             aid = req.headers['SIGNIFY-RESOURCE']
-            print(f"verifying {aid} {ser} {cig}")
-            result = verify_req(aid,cig.qb64,ser)
-            print(f"AuthSigs.on_post: result {result}")
-            if result['status_code'] >= 400:
-                return result
+            sig = cig.qb64
+            print(f"verification input aid={aid} ser={ser} cig={sig}")
+            return aid, sig, ser
 
-        return result
-
-verSig = AuthSigs()
-
-class LoginTask(object):
+class LoginTask:
 
     def on_post(self, req, resp):
         print("LoginTask.on_post")
@@ -131,7 +129,7 @@ class LoginTask(object):
         try:
             print(f"LoginTask.on_get: sending aid {aid}")
             result = check_login(aid)
-            print(f"LoginTask.on_get: received data {result}")
+            print(f"LoginTask.on_get: received data {resp.text[:50]}")
             resp.status = falcon.code_to_http_status(result["status_code"])
             resp.text = result["text"]
             resp.content_type = result["headers"]['Content-Type']
@@ -140,11 +138,14 @@ class LoginTask(object):
             resp.text = f"Exception: {e}"
             resp.status = falcon.HTTP_500
             
-class UploadTask(object):
+class UploadTask:
+    
+    def __init__(self, verCig: VerifySignedHeaders) -> None:
+        self.verCig = verCig
         
     def on_post(self, req, resp, aid, dig):
         print("UploadTask.on_post {}".format(req))
-        sig_check = verSig.process_request(req, resp)
+        sig_check = self.verCig.process_request(req, resp)
         if sig_check:
             print(f"UploadTask.on_post: Invalid signature on headers")
             return sig_check
@@ -172,7 +173,7 @@ class UploadTask(object):
             
     def on_get(self, req, resp, aid, dig):
         print("UploadTask.on_get")
-        sig_check = verSig.process_request(req, resp)
+        sig_check = self.verCig.process_request(req, resp)
         if sig_check:
             print(f"UploadTask.on_post: Invalid signature on headers")
             return sig_check
@@ -188,11 +189,14 @@ class UploadTask(object):
             resp.text = f"Exception: {e}"
             resp.status = falcon.HTTP_500
 
-class StatusTask(object):   
+class StatusTask:
+    
+    def __init__(self, verCig: VerifySignedHeaders) -> None:
+        self.verCig = verCig   
              
     def on_get(self, req, resp, aid):
         print(f"StatusTask.on_get request {req}")
-        sig_check = verSig.process_request(req, resp)
+        sig_check = self.verCig.process_request(req, resp)
         if sig_check:
             print(f"UploadTask.on_post: Invalid signature on headers")
             return sig_check
@@ -256,18 +260,18 @@ def swagger_ui(app):
                     "/login":{"post":{"tags":["default"],
                                         "summary":"Given an AID and vLEI, returns information about the login",
                                         "requestBody":{"required":"true","content":{"application/json":{"schema":{"type":"object","properties":{
-                                            "aid":{"type":"string","example":"EBcIURLpxmVwahksgrsGW6_dUw0zBhyEHYFk17eWrZfk"},
-                                            "said":{"type":"string","example":"EAPHGLJL1s6N4w1Hje5po6JPHu47R9-UoJqLweAci2LV"},
+                                            "aid":{"type":"string","example":"EHYfRWfM6RxYbzyodJ6SwYytlmCCW2gw5V-FsoX5BgGx"},
+                                            "said":{"type":"string","example":"EH37Qxg6UJF_gboIFAlvqdOu7r6Tz7P7BrVAeyHo_WDL"},
                                             "vlei":{"type":"string","example":f"{vlei_contents}"}
                                             }}}}},
                                         "responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object","example":{
-                                            "aid": "EBcIURLpxmVwahksgrsGW6_dUw0zBhyEHYFk17eWrZfk",
-                                            "said": "EBdaAMrpqfB0PlTgI3juS8UFgIPAXC1NZd1jSk6acenf"
-                                        }}}}}}
+                                            "aid": "EHYfRWfM6RxYbzyodJ6SwYytlmCCW2gw5V-FsoX5BgGx",
+                                            "said": "EH37Qxg6UJF_gboIFAlvqdOu7r6Tz7P7BrVAeyHo_WDL"
+                                            }}}}}},
                                         }},
                     "/checklogin/{aid}":{"get":{"tags":["default"],
                                         "summary":"Given an AID returns information about the login",
-                                        "parameters":[{"in":"path","name":"aid","required":"true","schema":{"type":"string","minimum":1,"example":"EBcIURLpxmVwahksgrsGW6_dUw0zBhyEHYFk17eWrZfk"},"description":"The AID"}],
+                                        "parameters":[{"in":"path","name":"aid","required":"true","schema":{"type":"string","minimum":1,"example":"EHYfRWfM6RxYbzyodJ6SwYytlmCCW2gw5V-FsoX5BgGx"},"description":"The AID"}],
                                         "responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object","example":{
                                             "aid": "EBcIURLpxmVwahksgrsGW6_dUw0zBhyEHYFk17eWrZfk",
                                             "said": "EBdaAMrpqfB0PlTgI3juS8UFgIPAXC1NZd1jSk6acenf"
@@ -377,13 +381,16 @@ def falcon_app():
     app.req_options.media_handlers.update(media.Handlers())
     app.resp_options.media_handlers.update(media.Handlers())
 
+    #the signature is a keri cigar objects
+    verCig = VerifySignedHeaders()
+    app.add_route("/verify/header", verCig)
+
     app.add_route('/ping', PingResource())
     app.add_route('/login', LoginTask())
     app.add_route("/checklogin/{aid}", LoginTask())
-    app.add_route('/upload/{aid}/{dig}', UploadTask())
-    app.add_route("/checkupload/{aid}/{dig}", UploadTask())
-    app.add_route("/status/{aid}", StatusTask())
-    app.add_route("/verify/header", verSig)
+    app.add_route('/upload/{aid}/{dig}', UploadTask(verCig))
+    app.add_route("/checkupload/{aid}/{dig}", UploadTask(verCig))
+    app.add_route("/status/{aid}", StatusTask(verCig))
     
     return app
     

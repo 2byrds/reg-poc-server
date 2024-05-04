@@ -27,14 +27,14 @@ from setuptools import find_packages
 from setuptools import setup
 
 setup(
-    name='reg-portal-service',
-    version='0.0.1',  # also change in src/regps/__init__.py
+    name='reg-pilot-server',
+    version='0.0.2',  # also change in src/regps/__init__.py
     license='Apache Software License 2.0',
     description='RegPS: Regulation Portal Service.',
     long_description="RegPS: A Regulation Portal Service to orchestate web app, vLEI validation, etc.",
     author='Lance Byrd',
     author_email='lance.byrd@rootsid.com',
-    url='https://github.com/roots-id/regulation-portal-service',
+    url='https://github.com/gleif-it/reg-pilot-server',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -48,7 +48,7 @@ setup(
         'Operating System :: Unix',
         'Operating System :: POSIX',
         'Operating System :: Microsoft :: Windows',
-        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: Implementation :: CPython',
         # uncomment if you test on these interpreters:
         # 'Programming Language :: Python :: Implementation :: PyPy',
@@ -58,7 +58,7 @@ setup(
         'Topic :: Utilities',
     ],
     project_urls={
-        'Issue Tracker': 'https://github.com/roots-id/regulation-portal-service/issues',
+        'Issue Tracker': 'https://github.com/gleif-it/regulation-portal-service/issues',
     },
     keywords=[
         "secure attribution",
@@ -67,19 +67,17 @@ setup(
         "vLEI",
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
-    python_requires='>=3.10.4',
+    python_requires='>=3.12.0',
     install_requires=[
         'apispec>=6.3.0',
         'asyncio>=3.4.3',
-        'celery>=5.3.0',
         'dataclasses_json>=0.5.7',
         'falcon>=3.1.0',
         'gunicorn>=20.1.0',
         'http_sfv>=0.9.8',
-        'redis>=4.5.5',
         'requests>=2.31.0',
         'swagger-ui-py>=22.7.13',
-        'keri @ git+https://git@github.com/WebOfTrust/keripy.git'
+        'keri>=1.1.11'
     ],
     extras_require={
         # eg:

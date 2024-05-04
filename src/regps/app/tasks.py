@@ -36,10 +36,7 @@ else:
         print(f"VERIFIER_REQUESTS is set. Using {VERIFIER_REQUESTS}")
         request_url = VERIFIER_REQUESTS
 
-def check_login(aid: str) -> dict:
-    return serialize(_login(aid))
-
-def _login(aid: str) -> falcon.Response:
+def check_login(aid: str) -> falcon.Response:
     print(f"checking login: {aid}")
     print(f"getting from {auths_url}{aid}")
     gres = requests.get(f"{auths_url}{aid}", headers={"Content-Type": "application/json"})
@@ -50,12 +47,12 @@ def verify_vlei(aid: str, said: str, vlei: str) -> dict:
     # first check to see if we're already logged in
     print(f"Login verification started {aid} {said} {vlei[:50]}")
 
-    login_response = _login(aid)
-    print(f"Login check {login_response.status_code} {login_response.text[:50]}")
+    login_response = check_login(aid)
+    print(f"Login check {login_response.status_code} {login_response.text[:500]}")
 
     if str(login_response.status_code) == str(falcon.http_status_to_code(falcon.HTTP_OK)):
         print("already logged in")
-        return serialize(login_response)
+        return login_response
     else:
         print(f"putting to {presentations_url}{said}")
         presentation_response = requests.put(f"{presentations_url}{said}", headers={"Content-Type": "application/json+cesr"}, data=vlei)
@@ -64,23 +61,22 @@ def verify_vlei(aid: str, said: str, vlei: str) -> dict:
         if presentation_response.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
             login_response = None
             while(login_response == None or login_response.status_code == falcon.http_status_to_code(falcon.HTTP_404)):
-                login_response = _login(aid)
+                login_response = check_login(aid)
                 print(f"polling result {login_response}")
                 sleep (1)
-            return serialize(login_response)
+            return login_response
         else:
-            return serialize(presentation_response)
+            return presentation_response
         
-def verify_req(aid,cig,ser):
-    print("Request verification started aid = {}, cig = {}, ser = {}....".format(aid,cig,ser))
+def verify_cig(aid,cig,ser) -> falcon.Response:
+    print("Verify header sig started aid = {}, cig = {}, ser = {}....".format(aid,cig,ser))
     print("posting to {}".format(request_url+f"{aid}"))
-    print(f"verify_req headers {aid}")
     pres = requests.post(request_url+aid, params={"sig": cig,"data": ser})
-    print("post response {}".format(pres.text))
-    return serialize(pres)
+    print("Verify header sig response {}".format(pres.text))
+    return pres
         
 def check_upload(aid: str, dig: str) -> dict:
-    return serialize(_upload(aid, dig))
+    return _upload(aid, dig)
 
 def _upload(aid: str, dig: str) -> falcon.Response:
     print(f"checking upload: aid {aid} and dig {dig}")
@@ -95,7 +91,7 @@ def upload(aid: str, dig: str, contype: str, report) -> dict:
     upload_response = _upload(aid, dig)
     if upload_response.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
         print("already uploaded")
-        return serialize(upload_response)
+        return upload_response
     else:
         print(f"posting to {reports_url}{aid}/{dig}")
         presentation_response = requests.post(f"{reports_url}{aid}/{dig}", headers={"Content-Type": contype}, data=report)
@@ -107,9 +103,6 @@ def upload(aid: str, dig: str, contype: str, report) -> dict:
                 upload_response = _upload(aid,dig)
                 print(f"polling result {upload_response.text}")
                 sleep (1)
-            return serialize(upload_response)
+            return upload_response
         else:
-            return serialize(presentation_response)
-        
-def serialize(response: falcon.Response) -> dict:
-    return {"status_code": response.status_code, "text": response.text, "headers":{"Content-Type": response.headers['Content-Type']}}
+            return presentation_response
