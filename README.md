@@ -10,10 +10,11 @@ Provides the ability to:
 * Check the status of an upload
 
 #### Running locally:
-In your terminal:
+After you have built the project locally (ex python -m pip install -e .)
+In your terminal from the root project dir:
 
-```
-cd src/regps; gunicorn -b 0.0.0.0:8000 app:app --reload
+``` 
+gunicorn regps.app.service:app
 ```
 
 #### Running in Docker:

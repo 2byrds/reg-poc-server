@@ -277,7 +277,7 @@ def getRequiredParam(body, name):
 
 def swagger_ui(app):
     vlei_contents = None
-    with open('app/data/credential.cesr', 'r') as cfile:
+    with open('./data/credential.cesr', 'r') as cfile:
         vlei_contents = cfile.read()
 
     report_zip = None
@@ -424,13 +424,14 @@ def falcon_app():
     app.add_route("/checkupload/{aid}/{dig}", UploadTask(verCig))
     app.add_route("/status/{aid}", StatusTask(verCig))
     
-    return app
+    swagger_ui(app)
     
+    return app
+
+app = falcon_app()
+
 def main():
     print("Starting RegPS...")
-    app = falcon_app()
-    api_doc=swagger_ui(app)
-
     return app
     
 if __name__ == '__main__':

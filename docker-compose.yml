@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   reg-server:
@@ -9,6 +7,7 @@ services:
     image: 2byrds/reg-server:latest
     ports:
       - 8000:8000
+    # command: gunicorn regps.app.service:app -b 0.0.0.0:8000
     volumes:
       - ./:/usr/src/app/regps
     environment:
@@ -16,31 +15,41 @@ services:
       - VERIFIER_AUTHORIZATIONS=http://host.docker.internal:7676/authorizations/
       - VERIFIER_PRESENTATIONS=http://host.docker.internal:7676/presentations/
       - VERIFIER_REPORTS=http://host.docker.internal:7676/reports/
-    depends_on:
-      - verifier
-
-  vlei-verifier:
-    build:
-      context: .
-      dockerfile: ./images/verifier.dockerfile
-    image: 2byrds/vlei-verifier:latest
-    container_name: vlei-verifier
-    hostname: vlei-verifier
-    # depends_on:
-    #   - vlei
-    #   - witnesses
-    ports:
-      - 7676:7676
     healthcheck:
       test:
           - CMD
           - curl
           - -f
-          - http://localhost:7676/health
+          - http://localhost:8000/api/doc#
       interval: 2s
       timeout: 3s
       retries: 5
       start_period: 2s
+    # depends_on:
+      # - verifier
+
+  # vlei-verifier:
+  #   build:
+  #     context: .
+  #     dockerfile: ./images/verifier.dockerfile
+  #   image: 2byrds/vlei-verifier:latest
+  #   container_name: vlei-verifier
+  #   hostname: vlei-verifier
+  #   # depends_on:
+  #   #   - vlei
+  #   #   - witnesses
+  #   ports:
+  #     - 7676:7676
+  #   healthcheck:
+  #     test:
+  #         - CMD
+  #         - curl
+  #         - -f
+  #         - http://localhost:7676/health
+  #     interval: 2s
+  #     timeout: 3s
+  #     retries: 5
+  #     start_period: 2s
 
   deps:
     image: alpine
@@ -50,7 +59,7 @@ services:
             condition: service_healthy
         # vlei-server:
         #     condition: service_healthy
-        vlei-verifier:
-            condition: service_healthy
+        # vlei-verifier:
+        #     condition: service_healthy
         # witness-demo:
         #     condition: service_healthy
