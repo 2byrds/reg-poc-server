@@ -1,5 +1,6 @@
 import falcon
 from falcon.testing import create_environ
+import os
 from regps.app import service
 from regps.app import tasks
 from keri.core import coring
@@ -13,13 +14,11 @@ import pytest
 
 
 #currently needs a pre-loaded vlei-verifier populated per signify-ts vlei-verifier test
-def test_verify_cig():
+def test_ends():
     # AID and SAID should be the same as what is in credential.cesr for the ECR credential
     # see https://trustoverip.github.io/tswg-acdc-specification/#top-level-fields to understand the fields/values
     AID = "EP4kdoVrDh4Mpzh2QbocUYIv4IjLZLDU367UO0b40f6x"
     SAID = "EElnd1DKvcDzzh7u7jBjsg2X9WgdQQuhgiu80i2VR-gk"
-
-    # '"@method": null\n"@path": /request/verify/EP4kdoVrDh4Mpzh2QbocUYIv4IjLZLDU367UO0b40f6x\n"signify-resource": EP4kdoVrDh4Mpzh2QbocUYIv4IjLZLDU367UO0b40f6x\n"signify-timestamp": 2024-05-03T19:21:16.745000+00:00\n"@signature-params: (@method @path signify-resource signify-timestamp);created=1714764449;keyid=BPoZo2b3r--lPBpURvEDyjyDkS65xBEpmpQhHQvrwlBE;alg=ed25519"'
 
     # got these from signify-ts integration test
     headers = {
@@ -39,8 +38,26 @@ def test_verify_cig():
 
     app = service.falcon_app()
     client = falcon.testing.TestClient(app)
+    
+    result = client.simulate_get(f"/ping", headers=headers)
+    assert result.status == falcon.HTTP_200
+    assert result.text == "Pong"
+    
+    result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
+    assert result.status == falcon.HTTP_401
+    
+    with open(f"./data/credential.cesr", 'r') as cfile:
+        vlei_ecr = cfile.read()
+        headers['Content-Type'] = 'application/json+cesr'
+        result = client.simulate_post(f"/login", json={"said": SAID, "vlei": vlei_ecr}, headers=headers)
+        assert result.status == falcon.HTTP_202
+    
+    result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
+    assert result.status == falcon.HTTP_200
+    
     result = client.simulate_get(f"/verify/header", headers=headers)
-    assert result.status == falcon.HTTP_401 # this signature is for a direct call to the verification service instead of /verify/header from the server call.
+    assert result.status == falcon.HTTP_401 # fail because this signature is for a direct call to the verification service instead of /verify/header from the server call.
+
     # assert result.aid == AID
     # assert (
     #     result.cig.qb64

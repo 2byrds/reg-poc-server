@@ -1,3 +1,4 @@
+import time
 from .tasks import check_login, check_upload, upload, verify_vlei, verify_cig
 import falcon
 from falcon import media
@@ -8,6 +9,13 @@ import os
 from swagger_ui import api_doc
 
 uploadStatus = {}
+
+def initStatusDb(aid):
+    if(aid not in uploadStatus):
+        print("Initialized status db for {}".format(aid))
+        uploadStatus[aid] = []
+    else:
+        print("Status db already initialized for {}".format(aid))
 
 #the signature is a keri cigar objects
 class VerifySignedHeaders:
@@ -25,11 +33,13 @@ class VerifySignedHeaders:
 
         if vresp.status_code >= 400:
             print(f"Header verification failed request {vresp.status_code} {vresp.text} {vresp.headers}")
-            resp.status = falcon.code_to_http_status(vresp.status_code)
-            resp.text = vresp.text
-            resp.content_type = vresp.headers['Content-Type']
         else :
             print(f"Signed header verification succeeded {resp}")
+            initStatusDb(aid)
+
+        resp.status = falcon.code_to_http_status(vresp.status_code)
+        resp.text = vresp.text
+        resp.content_type = vresp.headers['Content-Type']
 
     def on_get(self, req, resp):
         return self.process_request(req, resp)
@@ -102,23 +112,37 @@ class VerifySignedHeaders:
 
 class LoginTask:
 
+    # Expects a JSON object with the following fields:
+    # - said: the SAID of the credential
+    # - vlei: the vLEI ECR CESR
     def on_post(self, req, resp):
         print("LoginTask.on_post")
         try:
-            raw_json = req.stream.read()
-            data = json.loads(raw_json)
-            print(f"LoginTask.on_post: sending data {str(data)[:50]}...")
-            result = verify_vlei(data['aid'], data['said'], data['vlei'])
+            if req.content_type not in ("application/json",):
+                raise falcon.HTTPBadRequest(description=f"invalid content type={req.content_type} for VC presentation, should be application/json")
 
-            print(f"LoginTask.on_post: received data {result['status_code']}")
-            if(result["status_code"] < 400):
-                print("Logged in user, checking status...")
-                if(data['aid'] not in uploadStatus):
-                    print("Added empty status for {}".format(data['aid']))
-                    uploadStatus[data['aid']] = []
-            resp.status = falcon.code_to_http_status(result["status_code"])
-            resp.text = result["text"]
-            resp.content_type = result["headers"]['Content-Type']
+            data = req.media
+            if data.get("said") is None:
+                raise falcon.HTTPBadRequest(description="requests with a said is required")
+            if data.get("vlei") is None:
+                raise falcon.HTTPBadRequest(description="requests with vlei ecr cesr is required")
+
+
+
+            # raw_json = req.stream.read()
+            # data = json.loads(raw_json)
+
+            # ims = req.bounded_stream.read()
+            # data = ims.decode("utf-8")
+            print(f"LoginTask.on_post: sending login cred {str(data)[:50]}...")
+            
+            result = verify_vlei(data['said'], data['vlei'])
+
+            print(f"LoginTask.on_post: received data {result.status_code}")
+
+            resp.status = falcon.code_to_http_status(result.status_code)
+            resp.text = result.text
+            resp.content_type = result.headers['Content-Type']
         except Exception as e:
             print(f"LoginTask.on_post: Exception: {e}")
             resp.text = f"Exception: {e}"
@@ -128,11 +152,19 @@ class LoginTask:
         print("LoginTask.on_get")
         try:
             print(f"LoginTask.on_get: sending aid {aid}")
-            result = check_login(aid)
-            print(f"LoginTask.on_get: received data {resp.text[:50]}")
-            resp.status = falcon.code_to_http_status(result["status_code"])
-            resp.text = result["text"]
-            resp.content_type = result["headers"]['Content-Type']
+            login_resp = check_login(aid)
+            # if resp.status != falcon.HTTP_OK:
+            #     login_response = None
+            #     tries=0
+            #     while(tries < 5 and (login_response == None or login_response.status_code == falcon.http_status_to_code(falcon.HTTP_404))):
+            #         login_response = check_login(aid)
+            #         print(f"polling result {login_response}")
+            #         tries += 1
+            #         time.sleep (1)
+            #     print(f"LoginTask.on_get: received data {resp.text[:50]}")
+            #     return login_response
+            resp.status = login_resp.status_code
+            resp.text = login_resp.text
         except Exception as e:
             print(f"LoginTask.on_get: Exception: {e}")
             resp.text = f"Exception: {e}"
@@ -155,9 +187,9 @@ class UploadTask:
             result = upload(aid, dig, req.content_type, raw)
             print(f"UploadTask.on_post: received data {result}")
 
-            resp.status = falcon.code_to_http_status(result["status_code"])
-            resp.text = result["text"]
-            resp.content_type = result["headers"]['Content-Type']
+            resp.status = falcon.code_to_http_status(result.status_code)
+            resp.text = result.text
+            resp.content_type = result.headers['Content-Type']
             # add to status dict
             if(aid not in uploadStatus):
                 print(f"UploadTask.on_post: Error aid not logged in {aid}")
@@ -181,9 +213,9 @@ class UploadTask:
             print(f"UploadTask.on_get: sending aid {aid} for dig {dig}")
             result = check_upload(aid, dig)
             print(f"UploadTask.on_get: received data {result}")
-            resp.status = falcon.code_to_http_status(result["status_code"])
-            resp.text = result["text"]
-            resp.content_type = result["headers"]['Content-Type']
+            resp.status = falcon.code_to_http_status(result.status_code)
+            resp.text = result.text
+            resp.content_type = result.headers['Content-Type']
         except Exception as e:
             print(f"UploadTask.on_get: Exception: {e}")
             resp.text = f"Exception: {e}"
@@ -249,7 +281,7 @@ def swagger_ui(app):
         vlei_contents = cfile.read()
 
     report_zip = None
-    with open('app/data/report.zip', 'rb') as rfile:        
+    with open('./data/report.zip', 'rb') as rfile:        
         report_zip = rfile
 
     config = {"openapi":"3.0.1",

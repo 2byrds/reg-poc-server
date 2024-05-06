@@ -43,30 +43,12 @@ def check_login(aid: str) -> falcon.Response:
     print(f"login status: {gres}")
     return gres
 
-def verify_vlei(aid: str, said: str, vlei: str) -> dict:
-    # first check to see if we're already logged in
-    print(f"Login verification started {aid} {said} {vlei[:50]}")
-
-    login_response = check_login(aid)
-    print(f"Login check {login_response.status_code} {login_response.text[:500]}")
-
-    if str(login_response.status_code) == str(falcon.http_status_to_code(falcon.HTTP_OK)):
-        print("already logged in")
-        return login_response
-    else:
-        print(f"putting to {presentations_url}{said}")
-        presentation_response = requests.put(f"{presentations_url}{said}", headers={"Content-Type": "application/json+cesr"}, data=vlei)
-        print(f"put response {presentation_response.text}")
-
-        if presentation_response.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
-            login_response = None
-            while(login_response == None or login_response.status_code == falcon.http_status_to_code(falcon.HTTP_404)):
-                login_response = check_login(aid)
-                print(f"polling result {login_response}")
-                sleep (1)
-            return login_response
-        else:
-            return presentation_response
+def verify_vlei(said: str, vlei: str) -> dict:
+    print(f"Verify vlei task started {said} {vlei[:50]}")
+    print(f"presenting vlei ecr to url {presentations_url}{said}")
+    pres_res = requests.put(f"{presentations_url}{said}", headers={"Content-Type": "application/json+cesr"}, data=vlei)
+    print(f"verify vlei task response {pres_res.text}")
+    return pres_res
         
 def verify_cig(aid,cig,ser) -> falcon.Response:
     print("Verify header sig started aid = {}, cig = {}, ser = {}....".format(aid,cig,ser))
