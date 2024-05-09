@@ -1,7 +1,7 @@
 import falcon
+import json
 import os
 import requests
-from time import sleep
 
 auths_url = "http://127.0.0.1:7676/authorizations/"
 presentations_url = "http://127.0.0.1:7676/presentations/"
@@ -39,52 +39,39 @@ else:
 def check_login(aid: str) -> falcon.Response:
     print(f"checking login: {aid}")
     print(f"getting from {auths_url}{aid}")
-    gres = requests.get(f"{auths_url}{aid}", headers={"Content-Type": "application/json"})
-    print(f"login status: {gres}")
-    return gres
+    res = requests.get(f"{auths_url}{aid}", headers={"Content-Type": "application/json"})
+    print(f"login status: {json.dumps(res.json())}")
+    return res
 
-def verify_vlei(said: str, vlei: str) -> dict:
+def verify_vlei(said: str, vlei: str) -> falcon.Response:
     print(f"Verify vlei task started {said} {vlei[:50]}")
     print(f"presenting vlei ecr to url {presentations_url}{said}")
-    pres_res = requests.put(f"{presentations_url}{said}", headers={"Content-Type": "application/json+cesr"}, data=vlei)
-    print(f"verify vlei task response {pres_res.text}")
-    return pres_res
+    res = requests.put(f"{presentations_url}{said}", headers={"Content-Type": "application/json+cesr"}, data=vlei)
+    print(f"verify vlei task response {json.dumps(res.json())}")
+    return res
         
 def verify_cig(aid,cig,ser) -> falcon.Response:
     print("Verify header sig started aid = {}, cig = {}, ser = {}....".format(aid,cig,ser))
     print("posting to {}".format(request_url+f"{aid}"))
-    pres = requests.post(request_url+aid, params={"sig": cig,"data": ser})
-    print("Verify header sig response {}".format(pres.text))
-    return pres
-        
-def check_upload(aid: str, dig: str) -> dict:
-    return _upload(aid, dig)
+    res = requests.post(request_url+aid, params={"sig": cig,"data": ser})
+    print(f"Verify sig response {json.dumps(res.json())}")
+    return res
 
-def _upload(aid: str, dig: str) -> falcon.Response:
+def check_upload(aid: str, dig: str) -> falcon.Response:
     print(f"checking upload: aid {aid} and dig {dig}")
     print(f"getting from {reports_url}{aid}/{dig}")
-    reports_response = requests.get(f"{reports_url}{aid}/{dig}", headers={"Content-Type": "application/json"})
-    print(f"upload status: {reports_response}")
-    return reports_response
+    res = requests.get(f"{reports_url}{aid}/{dig}", headers={"Content-Type": "application/json"})
+    print(f"upload status: {json.dumps(res.json())}")
+    return res
 
-def upload(aid: str, dig: str, contype: str, report) -> dict:
-    print(f"report type {type(report)}")
+def upload(aid: str, dig: str, contype: str, report) -> falcon.Response:
+    print(f"upload report type {type(report)}")
     # first check to see if we've already uploaded
-    upload_response = _upload(aid, dig)
-    if upload_response.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
-        print("already uploaded")
-        return upload_response
+    res = check_upload(aid, dig)
+    if res.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
+        print(f"upload already uploaded: {json.dumps(res.json())}")
     else:
-        print(f"posting to {reports_url}{aid}/{dig}")
-        presentation_response = requests.post(f"{reports_url}{aid}/{dig}", headers={"Content-Type": contype}, data=report)
-        print(f"post response {presentation_response.text}")
-
-        if presentation_response.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
-            upload_response = None
-            while(upload_response == None or upload_response.status_code == falcon.http_status_to_code(falcon.HTTP_404)):
-                upload_response = _upload(aid,dig)
-                print(f"polling result {upload_response.text}")
-                sleep (1)
-            return upload_response
-        else:
-            return presentation_response
+        print(f"upload posting to {reports_url}{aid}/{dig}")
+        res = requests.post(f"{reports_url}{aid}/{dig}", headers={"Content-Type": contype}, data=report)
+        print(f"post response {json.dumps(res.json())}")
+    return res

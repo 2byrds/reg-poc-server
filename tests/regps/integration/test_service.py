@@ -2,16 +2,28 @@ import falcon
 from falcon.testing import create_environ
 import os
 from regps.app import service
-from regps.app import tasks
-from keri.core import coring
-
 import pytest
+import subprocess
+import time
 
 # @pytest.fixture(autouse=True)
 # def setup():
 #     # Your setup code goes here
 #     print("Setting up")
 
+@pytest.fixture(scope='session')
+def start_gunicorn():
+    # Start Gunicorn server
+    server = subprocess.Popen(['gunicorn', 'regps.app.service:app', '-b', '0.0.0.0:8000'])
+    # Give it some time to start up
+    while True:
+        time.sleep(3)
+    yield
+    # Stop Gunicorn server after tests have finished
+    server.terminate()
+    
+# def test_local(start_gunicorn):
+#     print("Running test_local so that you can debug the server")
 
 #currently needs a pre-loaded vlei-verifier populated per signify-ts vlei-verifier test
 def test_ends():
@@ -55,38 +67,5 @@ def test_ends():
     result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
     assert result.status == falcon.HTTP_200
     
-    result = client.simulate_get(f"/verify/header", headers=headers)
+    result = client.simulate_get(f"/login", headers=headers)
     assert result.status == falcon.HTTP_401 # fail because this signature is for a direct call to the verification service instead of /verify/header from the server call.
-
-    # assert result.aid == AID
-    # assert (
-    #     result.cig.qb64
-    #     == "0BAFWzKD9FsC5aq7ACgBsseYZBtWffuzgQGP72o1v0_PEpJRNzjmgVcANyBLdtq3W2IX-ZEDWFwikMD156pxEvsA"
-    # )
-    # assert (
-    #     result.ser
-    #     == '"@method": POST\n"@path": /\n"signify-resource": EP4kdoVrDh4Mpzh2QbocUYIv4IjLZLDU367UO0b40f6x\n"signify-timestamp": 2024-05-04T14:47:24.307000+00:00\n"@signature-params: (@method @path signify-resource signify-timestamp);created=1714834044;keyid=BPoZo2b3r--lPBpURvEDyjyDkS65xBEpmpQhHQvrwlBE;alg=ed25519"'
-    # )
-
-
-#     hby.kevers[hab.pre] = hab.kever
-
-#     auth = Authorizer(hby, vdb, eccrdntler.rgy.reger, [LEI1])
-#     auth.processPresentations()
-
-#     result = client.simulate_get(f'/authorizations/{hab.pre}')
-#     assert result.status == falcon.HTTP_OK
-
-#     data = 'this is the raw data'
-#     raw = data.encode("utf-8")
-#     cig = hab.sign(ser=raw, indexed=False)[0]
-#     assert cig.qb64 == '0BChOKVR4b5t6-cXKa3u3hpl60X1HKlSw4z1Rjjh1Q56K1WxYX9SMPqjn-rhC4VYhUcIebs3yqFv_uu0Ou2JslQL'
-#     assert hby.kevers[hab.pre].verfers[0].verify(sig=cig.raw, ser=raw)
-#     result = client.simulate_post(f'/request/verify/{hab.pre}',params={'data': data, 'sig': cig.qb64})
-#     assert result.status == falcon.HTTP_202
-
-#     data = '"@method": GET\n"@path": /verify/header\n"signify-resource": EHYfRWfM6RxYbzyodJ6SwYytlmCCW2gw5V-FsoX5BgGx\n"signify-timestamp": 2024-05-01T19:54:53.571000+00:00\n"@signature-params: (@method @path signify-resource signify-timestamp);created=1714593293;keyid=BOieebDzg4uaqZ2zuRAX1sTiCrD3pgGT3HtxqSEAo05b;alg=ed25519"'
-#     raw = data.encode("utf-8")
-#     cig = hab.sign(ser=raw, indexed=False)[0]
-#     assert cig.qb64 == '0BB1Z2DS3QvIBdZJ1Q7yuZCUG-6YkVXDm7dcGbIFEIsLYEBfFXk8P_Y9FUACTlv5vCHeCet70QzVdR8fu5tLBKkP'
-#     assert hby.kevers[hab.pre].verfers[0].verify(sig=cig.raw, ser=raw)
