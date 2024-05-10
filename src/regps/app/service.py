@@ -159,6 +159,7 @@ class LoginTask:
             copyResponse(resp, verify_vlei(data["said"], data["vlei"]))
 
             print(f"LoginTask.on_post: received data {resp.status}")
+            return
         except Exception as e:
             print(f"LoginTask.on_post: Exception: {e}")
             resp.status = falcon.HTTP_500
@@ -194,25 +195,25 @@ class UploadTask:
 
     def on_post(self, req: falcon.Request, resp: falcon.Response, aid, dig):
         print("UploadTask.on_post {}".format(req))
-        try:
-            sig_check = self.verCig.process_request(req, resp)
-            if sig_check:
-                print(f"UploadTask.on_post: Invalid signature on headers")
-                return sig_check
+        try :
+            check_headers = self.verCig.process_request(req, resp)
+            if check_headers.status_code >= 400:
+                print(f"UploadTask.on_post: Invalid signature on headers or error was received")
+                return copyResponse(resp,check_headers)
 
             raw = req.bounded_stream.read()
             print(
                 f"UploadTask.on_post: request for {aid} {dig} {raw} {req.content_type}"
             )
-            copyResponse(resp, upload(aid, dig, req.content_type, raw))
-            data = json.loads(resp)
-            print(f"UploadTask.on_post: received data {data}")
-
-            # add to status dict
-            if resp.status_code <= 400:
-                print(f"UploadTask.on_post added uploadStatus for {aid}: {dig}")
-                uploadStatus[f"{aid}"].append(resp)
-                return
+            upload_resp = upload(aid, dig, req.content_type, raw)
+            if upload_resp.status_code >= 400:
+                print(f"UploadTask.on_post: Invalid signature on report or error was received")
+                return copyResponse(resp,upload_resp)
+            else:
+                print(f"UploadTask.on_post: completed upload for {aid} {dig} with code {upload_resp.status_code}")
+                uploadStatus[f"{aid}"].append(json.dumps(upload_resp.json()))
+                return copyResponse(resp,upload_resp)
+            
         except Exception as e:
             print(f"Upload.on_post: Exception: {e}")
             resp.status = falcon.HTTP_500
@@ -251,29 +252,30 @@ class StatusTask:
 
     def on_get(self, req: falcon.Request, resp: falcon.Response, aid):
         print(f"StatusTask.on_get request {req}")
-        copyResponse(resp,self.verCig.process_request(req, resp))
-        if resp:
-            print(f"UploadTask.on_post: Invalid signature on headers")
-            return resp
-        try:
+        try :
+            check_headers = self.verCig.process_request(req, resp)
+            if check_headers.status_code >= 400:
+                print(f"StatusTask.on_get: Invalid signature on headers or error was received")
+                return copyResponse(resp,check_headers)
+            
             print(f"StatusTask.on_get: aid {aid}")
-            resp = falcon.Response()
             if aid not in uploadStatus:
-                print(f"UploadTask.on_post: Cannot find status for {aid}")
+                print(f"StatusTask.on_post: Cannot find status for {aid}")
                 resp.data = json.dumps(dict(msg=f"AID not logged in: {aid}")).encode("utf-8")
                 resp.status = falcon.HTTP_401
-                return
+                return resp
             else:
                 responses = uploadStatus[f"{aid}"]
-                if responses.length == 0:
-                    print(f"Empty upload status list for aid {aid}")
+                if len(responses) == 0:
+                    print(f"StatusTask.on_get: Empty upload status list for aid {aid}")
                     resp.status = falcon.HTTP_200
-                    resp.data = json.dumps({f"msg": "No uploads found"})
+                    resp.data = json.dumps(dict(msg="No uploads found")).encode("utf-8")
+                    return resp
                 else:
                     print(f"StatusTask.on_get: received data {json.dumps(resp.data)}")
                     resp.status = falcon.HTTP_200
-                    resp.data = json.dumps(dict(aid=f"{aid}",responses=responses)).encode("utf-8")
-                return
+                    resp.data = json.dumps(responses).encode("utf-8")
+                    return resp
         except Exception as e:
             print(f"Status.on_get: Exception: {e}")
             resp.status = falcon.HTTP_500
@@ -282,7 +284,7 @@ class StatusTask:
                     exception_type=type(e).__name__,
                     exception_message=str(e)
                 )).encode("utf-8")
-            return
+            return resp
 
 
 class HandleCORS(object):

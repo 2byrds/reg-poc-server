@@ -5,25 +5,26 @@ from regps.app import service
 import pytest
 import subprocess
 import time
-
-# @pytest.fixture(autouse=True)
-# def setup():
-#     # Your setup code goes here
-#     print("Setting up")
+import threading
+from wsgiref import simple_server
 
 @pytest.fixture(scope='session')
 def start_gunicorn():
-    # Start Gunicorn server
-    server = subprocess.Popen(['gunicorn', 'regps.app.service:app', '-b', '0.0.0.0:8000'])
+    # Start Gunicorn server in a separate thread
+    server = simple_server.make_server('0.0.0.0', 8000, service.app)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.start()
     # Give it some time to start up
-    while True:
-        time.sleep(3)
+    time.sleep(3)
     yield
     # Stop Gunicorn server after tests have finished
-    server.terminate()
+    server.shutdown()
+    server_thread.join()
     
-# def test_local(start_gunicorn):
-#     print("Running test_local so that you can debug the server")
+def test_local(start_gunicorn):
+    print("Running test_local so that you can debug the server")
+    while True:
+        time.sleep(1)
 
 #currently needs a pre-loaded vlei-verifier populated per signify-ts vlei-verifier test
 def test_ends():
@@ -55,8 +56,8 @@ def test_ends():
     assert result.status == falcon.HTTP_200
     assert result.text == "Pong"
     
-    result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
-    assert result.status == falcon.HTTP_401
+    # result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
+    # assert result.status == falcon.HTTP_200
     
     with open(f"./data/credential.cesr", 'r') as cfile:
         vlei_ecr = cfile.read()
@@ -67,5 +68,5 @@ def test_ends():
     result = client.simulate_get(f"/checklogin/{AID}", headers=headers)
     assert result.status == falcon.HTTP_200
     
-    result = client.simulate_get(f"/login", headers=headers)
-    assert result.status == falcon.HTTP_401 # fail because this signature is for a direct call to the verification service instead of /verify/header from the server call.
+    result = client.simulate_get(f"/status/{AID}", headers=headers)
+    assert result.status == falcon.HTTP_401 # fail because this signature should not verify

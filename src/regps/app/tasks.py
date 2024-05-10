@@ -67,11 +67,12 @@ def check_upload(aid: str, dig: str) -> falcon.Response:
 def upload(aid: str, dig: str, contype: str, report) -> falcon.Response:
     print(f"upload report type {type(report)}")
     # first check to see if we've already uploaded
-    res = check_upload(aid, dig)
-    if res.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
-        print(f"upload already uploaded: {json.dumps(res.json())}")
+    cres = check_upload(aid, dig)
+    if cres.status_code == falcon.http_status_to_code(falcon.HTTP_ACCEPTED):
+        print(f"upload already uploaded: {json.dumps(cres.json())}")
+        return cres
     else:
         print(f"upload posting to {reports_url}{aid}/{dig}")
-        res = requests.post(f"{reports_url}{aid}/{dig}", headers={"Content-Type": contype}, data=report)
-        print(f"post response {json.dumps(res.json())}")
-    return res
+        pres = requests.post(f"{reports_url}{aid}/{dig}", headers={"Content-Type": contype}, data=report)
+        print(f"post response {json.dumps(pres.json())}")
+        return pres
